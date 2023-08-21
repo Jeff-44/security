@@ -4,24 +4,37 @@ dotenv.config();
 import express from "express";
 import ejs from "ejs";
 import mongoose from "mongoose";
-import bcrypt from "bcrypt";
+import session from "express-session";
+import passport from "passport";
+import passportLocalMongoose from "passport-local-mongoose";
+
 
 
 
 
 const app = express();
 const port = 3000;
-const saltRounds = 10;
-const salt = bcrypt.genSaltSync(saltRounds);
 
+
+// MIDDLEWARES
 app.use(express.urlencoded({extended: true}));
 app.use(express.static("public"));
+
+// AUTHENTICATION USING EXPRESS-SESSION
+app.use(session({
+    secret: process.env.SECRET,
+    resave: false,
+    saveUninitialized: false,
+  }));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 
 // DATABASE CONNECTION
 (function (){
     try {
-        mongoose.connect("mongodb://127.0.0.1:27017/userDB");
+        mongoose.connect(process.env.MONGODB_CONNECTION_STRING);
         console.log("Successfully connected to the userDB");
     } catch (error) {
         console.log(error);
@@ -34,7 +47,14 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
+// USE PASSPORT-LOCAL-MONGOOSE ON THE USERSCHEMA
+userSchema.plugin(passportLocalMongoose);
+
 const User = mongoose.model("User", userSchema);
+
+passport.use(User.createStrategy());
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
 
 app.get("/", (req, res)=>{
     res.render("home.ejs");
@@ -46,22 +66,7 @@ app.route("/register")
     })
     
     .post((req, res)=>{
-        const username = req.body.username;
-        const hash = bcrypt.hashSync(req.body.password, salt);
-
-        const newUser = new User({
-            email: username,
-            password: hash
-        });
-    
-        try {
-            newUser.save();
-            console.log("User successfully saved in database");
-            res.render("secrets.ejs");
-        } catch (error) {
-            console.log("Error in registering new user: " + error);
-            res.send(error.message);
-        }
+        
         
     });
 
@@ -72,25 +77,7 @@ app.route("/login")
     })
     
     .post(async (req, res)=>{
-        const username = req.body.username;
         
-        try {
-            const foundUser = await User.findOne({email: username});
-
-            if(foundUser){
-               if(bcrypt.compareSync(req.body.password, foundUser.password)){ 
-                    res.render("secrets.ejs");
-                }else{
-                    res.send("Password does not match");
-                }
-
-            }else{
-                res.send("User does not exist");
-            }
-            
-        } catch (error) {
-            res.send(error.message);
-        }
     });
     
 app.listen(port, ()=>{
