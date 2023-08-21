@@ -4,13 +4,16 @@ dotenv.config();
 import express from "express";
 import ejs from "ejs";
 import mongoose from "mongoose";
-import md5 from "md5";
+import bcrypt from "bcrypt";
 
 
 
 
 const app = express();
 const port = 3000;
+const saltRounds = 10;
+const salt = bcrypt.genSaltSync(saltRounds);
+
 app.use(express.urlencoded({extended: true}));
 app.use(express.static("public"));
 
@@ -31,11 +34,7 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
-
-
-
 const User = mongoose.model("User", userSchema);
-
 
 app.get("/", (req, res)=>{
     res.render("home.ejs");
@@ -48,13 +47,13 @@ app.route("/register")
     
     .post((req, res)=>{
         const username = req.body.username;
-        const password = md5(req.body.password);
+        const hash = bcrypt.hashSync(req.body.password, salt);
 
         const newUser = new User({
             email: username,
-            password: password
+            password: hash
         });
-
+    
         try {
             newUser.save();
             console.log("User successfully saved in database");
@@ -66,6 +65,7 @@ app.route("/register")
         
     });
 
+
 app.route("/login")
     .get((req, res)=>{
         res.render("login.ejs");
@@ -73,20 +73,26 @@ app.route("/login")
     
     .post(async (req, res)=>{
         const username = req.body.username;
-        const password = md5(req.body.password);
-
+        
         try {
             const foundUser = await User.findOne({email: username});
+
             if(foundUser){
-                if(foundUser.password === password){
+               if(bcrypt.compareSync(req.body.password, foundUser.password)){ 
                     res.render("secrets.ejs");
+                }else{
+                    res.send("Password does not match");
                 }
+
+            }else{
+                res.send("User does not exist");
             }
             
         } catch (error) {
             res.send(error.message);
         }
     });
+    
 app.listen(port, ()=>{
     console.log(`Server running on port ${port}`);
 });
