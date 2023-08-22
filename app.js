@@ -60,14 +60,30 @@ app.get("/", (req, res)=>{
     res.render("home.ejs");
 });
 
+app.get("/secrets", (req, res)=>{
+    if(req.isAuthenticated()){
+        res.render("secrets.ejs");
+    }else{
+        res.redirect("/login");
+    }
+});
+
 app.route("/register")
     .get((req, res)=>{
         res.render("register.ejs");
     })
     
-    .post((req, res)=>{
-        
-        
+    .post(async (req, res)=>{
+        User.register({username: req.body.username}, req.body.password, function(error, user){
+            if(error){
+                console.log(error);
+                res.redirect("/register");
+            }else{
+                passport.authenticate("local")(req, res, ()=>{
+                    res.redirect("/secrets");
+                });
+            }
+        });
     });
 
 
@@ -77,8 +93,32 @@ app.route("/login")
     })
     
     .post(async (req, res)=>{
-        
+        const user = new User({
+            username: req.body.username,
+            password: req.body.password
+        });
+
+        req.login(user, function(error){
+            if(error){
+                console.log(error);
+                res.redirect("/login");
+            }else{
+                res.redirect("/secrets");
+            }
+        });
     });
+
+app.get("/logout", (req, res)=>{
+    req.logout(function(error){
+        if(!error){
+            console.log("Logout successfully!!!");
+            res.redirect("/");
+        }else{
+            console.log(error);
+        }
+    });
+    
+});
     
 app.listen(port, ()=>{
     console.log(`Server running on port ${port}`);
